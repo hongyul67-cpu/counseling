@@ -3,3 +3,7 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+
+# 키가 박힌 개인용 HTML — 절대 공개 저장소에 올리지 않음
+상담일지_개인용.html
+*_개인용.html

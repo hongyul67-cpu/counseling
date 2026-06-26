@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>상담 일지 작성 도구</title>
+<style>
+  :root { --bg:#f7f8fa; --card:#fff; --line:#e3e6ea; --txt:#1f2430; --muted:#6b7280;
+          --pri:#2563eb; --pri-d:#1d4ed8; --warn-bg:#fff7ed; --warn-bd:#fdba74;
+          --err-bg:#fef2f2; --err-bd:#fca5a5; --err-tx:#b91c1c; --ok:#16a34a; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt);
+         font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic",sans-serif;
+         line-height:1.55; }
+  .wrap { max-width:760px; margin:0 auto; padding:18px 16px 60px; }
+  h1 { font-size:1.4rem; margin:.2em 0 .1em; }
+  h2 { font-size:1.05rem; margin:1.4em 0 .5em; }
+  .sub { color:var(--muted); font-size:.9rem; margin:0 0 14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px;
+          padding:16px; margin:12px 0; }
+  label { display:block; font-weight:600; font-size:.92rem; margin:12px 0 5px; }
+  .hint { font-weight:400; color:var(--muted); font-size:.82rem; }
+  input[type=text], input[type=date], input[type=number], input[type=password], textarea, select {
+    width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px;
+    font-size:1rem; font-family:inherit; background:#fff; color:var(--txt); }
+  textarea { resize:vertical; }
+  .topics { display:flex; flex-wrap:wrap; gap:8px; margin-top:4px; }
+  .topics label { display:inline-flex; align-items:center; gap:6px; font-weight:400;
+    background:#f1f5f9; border:1px solid var(--line); border-radius:20px;
+    padding:6px 12px; margin:0; cursor:pointer; font-size:.88rem; }
+  .topics input { accent-color:var(--pri); margin:0; }
+  .topics label.on { background:#dbeafe; border-color:#93c5fd; }
+  button { font-family:inherit; cursor:pointer; }
+  .btn { width:100%; padding:13px; border:none; border-radius:9px; font-size:1.02rem;
+         font-weight:700; background:var(--pri); color:#fff; }
+  .btn:hover { background:var(--pri-d); }
+  .btn:disabled { opacity:.55; cursor:not-allowed; }
+  .btn-sec { background:#eef2f7; color:var(--txt); border:1px solid var(--line);
+             font-weight:600; }
+  .btn-sec:hover { background:#e2e8f0; }
+  .row { display:flex; gap:10px; }
+  .row > * { flex:1; }
+  .note { border-radius:9px; padding:12px 14px; font-size:.9rem; margin:10px 0; }
+  .warn { background:var(--warn-bg); border:1px solid var(--warn-bd); }
+  .err { background:var(--err-bg); border:1px solid var(--err-bd); color:var(--err-tx); }
+  .info { background:#eff6ff; border:1px solid #bfdbfe; }
+  .warn ul { margin:.4em 0 0; padding-left:1.2em; }
+  .warn li { margin:.15em 0; }
+  details { margin-top:10px; border:1px solid var(--line); border-radius:9px; padding:0 12px; background:#fafbfc; }
+  summary { cursor:pointer; font-weight:600; padding:11px 0; font-size:.92rem; }
+  .sec-item { display:flex; gap:6px; align-items:flex-start; margin:8px 0;
+              border:1px solid var(--line); border-radius:8px; padding:8px; background:#fff; }
+  .sec-item .fields { flex:1; }
+  .sec-item input { margin-bottom:5px; }
+  .sec-item .ctrl { display:flex; flex-direction:column; gap:4px; }
+  .icon-btn { width:30px; height:28px; border:1px solid var(--line); border-radius:6px;
+              background:#f8fafc; font-size:.8rem; line-height:1; }
+  .spinner { display:inline-block; width:16px; height:16px; border:2px solid #fff;
+             border-top-color:transparent; border-radius:50%; animation:spin .7s linear infinite;
+             vertical-align:-3px; margin-right:8px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .small { font-size:.82rem; color:var(--muted); }
+  .keybar { background:#1e293b; color:#e2e8f0; }
+  .keybar label { color:#e2e8f0; }
+  .keybar input { background:#0f172a; color:#e2e8f0; border-color:#334155; }
+  code { background:#eef2f7; padding:1px 5px; border-radius:4px; font-size:.85em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>📝 상담 일지 작성 도구</h1>
+  <p class="sub">메모한 키워드로 표준화된 상담 일지 초안을 자동 작성합니다. 입력 내용은 서버에 저장되지 않고, 브라우저에서 Google Gemini로 직접 전송됩니다.</p>
+
+  <!-- API 키 입력 (배포용) -->
+  <div class="card keybar" id="keyCard">
+    <label for="apiKey">🔑 Gemini API 키 <span class="hint">(이 기기 브라우저에만 저장됨 · 서버 전송 안 함)</span></label>
+    <input type="password" id="apiKey" placeholder="AI Studio에서 발급한 키 입력 (aistudio.google.com/apikey)" autocomplete="off">
+    <div class="row" style="margin-top:8px">
+      <button class="btn-sec" onclick="saveKey()">키 저장</button>
+      <button class="btn-sec" onclick="clearKey()">키 삭제</button>
+    </div>
+    <p class="small" style="margin:8px 0 0">키는 본인 것을 사용하세요. 이 페이지는 키를 어디에도 보내지 않고 Google에 직접 호출할 때만 씁니다.</p>
+  </div>
+
+  <!-- 개인정보 경고 -->
+  <div class="note warn" id="privacyBox"></div>
+
+  <!-- 입력 폼 -->
+  <div class="card">
+    <h2>상담 정보 입력</h2>
+
+    <label for="counselor">상담사 이름 <span class="hint">(선택 — 일지 머리말에 기록)</span></label>
+    <input type="text" id="counselor" placeholder="예: 홍길동">
+
+    <label for="alias">학생 (가명/이니셜)</label>
+    <input type="text" id="alias" placeholder="예: A군, 김OO, 이니셜 J.H.">
+    <div id="nameWarn" class="small" style="color:#b45309; display:none; margin-top:4px">⚠️ 실명일 수 있습니다. 가명이면 무시하세요.</div>
+
+    <div class="row">
+      <div>
+        <label for="cdate">상담 날짜</label>
+        <input type="date" id="cdate">
+      </div>
+      <div>
+        <label for="session">상담 회차 <span class="hint">(선택)</span></label>
+        <input type="number" id="session" min="0" step="1" value="0">
+      </div>
+    </div>
+
+    <label>상담 유형 <span class="hint">(복수 선택 가능)</span></label>
+    <div class="topics" id="topics"></div>
+
+    <label for="memo">상담 메모 (키워드·요점)</label>
+    <textarea id="memo" rows="7" placeholder="상담 중 메모한 키워드나 요점을 자유롭게 적어 주세요.&#10;예: 최근 시험 성적 하락, 부모와 갈등, 수면 부족 호소..."></textarea>
+
+    <details>
+      <summary>📎 이전 회차 일지 첨부 (선택) — 상담 흐름 이어가기</summary>
+      <p class="small">지난 회차에 저장한 .txt 일지를 올리거나 내용을 붙여넣으면, 이번 일지가 그 맥락을 참고해 작성됩니다. 어디에도 저장되지 않습니다.</p>
+      <input type="file" id="prevFile" accept=".txt" style="margin:6px 0">
+      <textarea id="prevLog" rows="4" placeholder="또는 이전 일지 내용을 여기에 붙여넣기"></textarea>
+    </details>
+
+    <details>
+      <summary>🗂 일지 양식 편집 (선택) — 항목 추가·삭제·순서변경</summary>
+      <p class="small">각 항목에 작성 가이드(선택)를 달면 AI가 참고합니다. 변경 사항은 이 브라우저에 저장됩니다.</p>
+      <div id="sections"></div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn-sec" onclick="addSection()">+ 항목 추가</button>
+        <button class="btn-sec" onclick="resetSections()">기본값으로 초기화</button>
+      </div>
+    </details>
+
+    <div style="margin-top:16px">
+      <button class="btn" id="genBtn" onclick="generate()">일지 작성하기</button>
+    </div>
+  </div>
+
+  <!-- 결과 -->
+  <div id="result"></div>
+
+  <p class="small" style="text-align:center; margin-top:30px">
+    🛡 AI가 작성한 <b>초안</b>입니다. 반드시 상담사가 검토·수정 후 공식 기록으로 사용하세요.
+  </p>
+</div>
+
+<script>
+/* ───────────── 설정값 (Python constants.py 이식) ───────────── */
+const COUNSELING_TOPICS = [
+  "학업 (성적·학습습관·시험불안)", "진로·적성", "또래관계 (교우·이성관계)",
+  "가족관계 (부모·형제·가정환경)", "정서·심리 (우울·불안·분노조절·스트레스)",
+  "행동·생활습관 (스마트폰·게임 과의존·수면·등교거부)", "학교폭력 (피해·가해·목격)",
+  "성(性) 관련 고민", "자아·성격 (자존감·자기이해)", "경제·환경적 어려움", "기타",
+];
+const CRISIS_RELATED_TOPICS = [
+  "정서·심리 (우울·불안·분노조절·스트레스)", "학교폭력 (피해·가해·목격)", "성(性) 관련 고민",
+];
+const CRISIS_KEYWORDS = [
+  "자살","죽고 싶","죽고싶","자해","손목","극단적 선택","사라지고 싶","없어지고 싶",
+  "살기 싫","살고 싶지 않","성폭력","성추행","성폭행","학대","폭행당","맞았","가출","약물","유서",
+];
+const DEFAULT_LOG_SECTIONS = [
+  {title:"호소 문제 및 상담 내용", guide:""},
+  {title:"상담사 관찰 및 평가", guide:""},
+  {title:"개입 내용 및 조치", guide:""},
+  {title:"추후 계획", guide:""},
+];
+const PRIVACY_WARNING = `
+  <b>🔒 개인정보 보호 — 입력 전 꼭 확인하세요</b>
+  <ul>
+    <li>학생의 <b>실명 대신 가명/이니셜</b>을 사용하세요.</li>
+    <li>전화번호·주소·학교명·생년월일 등 <b>신원을 특정할 수 있는 정보는 적지 마세요.</b></li>
+    <li>입력 내용은 일지 생성을 위해 Google Gemini로 전송되며, 어디에도 저장되지 않습니다.</li>
+    <li>⚠️ <b>무료 티어 사용 시</b> 입력 내용이 Google 모델 개선에 사용되거나 검토자가 열람할 수 있습니다. 민감한 세부 사건·진단명·제3자 정보는 꼭 필요한 최소한으로만 적어주세요.</li>
+  </ul>`;
+const CRISIS_NOTICE = `⚠️ <b>위기 사례 안내</b> · 자해·자살·학대 등 위기가 의심되는 경우, AI 일지에 앞서 <b>기관 내 위기대응 절차와 슈퍼바이저 보고를 우선</b>하세요. 도움이 필요하면 청소년상담전화 <b>1388</b>(국번없이)로 연계할 수 있습니다.`;
+const AI_DISCLAIMER = `ℹ️ 아래 일지는 AI가 작성한 <b>초안</b>입니다. 반드시 상담사가 사실관계를 검토·수정한 뒤 공식 기록으로 사용하세요.`;
+const GEMINI_MODEL = "gemini-2.5-flash";
+
+/* 개인용 버전에서는 아래에 키가 들어갑니다. 배포용은 빈 문자열. */
+const EMBEDDED_KEY = "";
+
+/* ───────────── 로직 (Python logic.py 이식) ───────────── */
+function sanitizeForFilename(text) {
+  if (!text) return "";
+  let c = text.replace(/[\\/:*?"<>|]/g, "_").replace(/[\x00-\x1f]/g, "");
+  c = c.trim().replace(/^\.+|\.+$/g, "").trim();
+  return c.slice(0, 50);
+}
+function pad(n){ return String(n).padStart(2,"0"); }
+function buildFilename(alias, dateStr, sessionNo) {
+  const now = new Date();
+  const a = sanitizeForFilename(alias) || "상담";
+  const t = pad(now.getHours())+pad(now.getMinutes())+pad(now.getSeconds());
+  const sp = sessionNo ? `_${sessionNo}회차` : "";
+  return `${a}_${dateStr}${sp}_${t}.txt`;
+}
+function detectCrisis(topics, memo) {
+  if ((topics||[]).some(t => CRISIS_RELATED_TOPICS.includes(t))) return true;
+  const text = memo || "";
+  return CRISIS_KEYWORDS.some(kw => text.includes(kw));
+}
+function looksLikeRealName(text) {
+  return /^[가-힣]{2,4}$/.test((text||"").trim());
+}
+function sectionsForPrompt(sections) {
+  const lines = [];
+  sections.forEach((s, i) => {
+    const title = (s.title||"").trim();
+    const guide = (s.guide||"").trim();
+    if (!title) return;
+    lines.push(guide ? `${i+1}. ${title} — (${guide})` : `${i+1}. ${title}`);
+  });
+  return lines.join("\n");
+}
+function buildPrompt(alias, dateStr, topics, memo, sections, previousLog) {
+  const topicStr = (topics && topics.length) ? topics.join(", ") : "미지정";
+  const sectionStr = sectionsForPrompt(sections && sections.length ? sections : DEFAULT_LOG_SECTIONS);
+  let prevBlock = "";
+  if (previousLog) {
+    prevBlock = `
+[이전 회차 일지 — 맥락 참고용]
+아래는 같은 학생의 지난 상담 기록입니다. 이번 회기의 흐름과 연속성을 이해하는 데만
+참고하고, 이전 내용을 이번 일지에 그대로 옮겨 적지 마세요.
+"""
+${previousLog}
+"""
+`;
+  }
+  return `당신은 청소년 상담 분야의 숙련된 전문상담사입니다.
+아래 상담 메모를 바탕으로 표준화된 상담 일지를 작성하세요.
+
+[가장 중요한 원칙 — 반드시 지킬 것]
+- 상담 일지는 사실 기록입니다. 메모에 명시되지 않은 내용을 절대 지어내지 마세요.
+- 메모에 없는 관찰·감정·진단·임상적 표현을 추가하지 마세요.
+  (예: 메모에 없는데 '자살 사고를 호소하였다', '심각한 우울을 보였다' 등으로 단정 금지)
+- 정보가 부족한 항목은 비워두지 말고 정확히 "추가 확인 필요"라고 적으세요.
+- 추측이 필요한 경우, 단정하지 말고 "~로 보임", "~을 언급함" 처럼 관찰 수준으로만 기술하세요.
+- 의심스러우면 더 적게, 더 신중하게 쓰세요. 과장보다 누락이 안전합니다.
+
+[문체]
+- 공적이고 간결하며 객관적인 전문 상담 문체.
+- 대상·일자·상담유형 등 기본 정보는 일지 파일 머리말에 따로 기록되므로,
+  본문에서는 다시 적지 말고 상담 내용 자체에만 집중하세요.
+
+[일지 항목 — 이 구조를 따르세요]
+${sectionStr}
+${prevBlock}
+[상담 정보]
+- 대상(가명/이니셜): ${alias}
+- 상담 일자: ${dateStr}
+- 상담 유형: ${topicStr}
+
+[이번 회기 상담 메모]
+${memo}
+`;
+}
+
+/* ───────────── Gemini 호출 ───────────── */
+async function callGemini(apiKey, prompt) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const body = {
+    contents: [{ parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.4 }
+  };
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try { const e = await res.json(); if (e.error && e.error.message) msg = e.error.message; } catch(_) {}
+    throw new Error(msg);
+  }
+  const data = await res.json();
+  const cand = data.candidates && data.candidates[0];
+  if (!cand) {
+    if (data.promptFeedback && data.promptFeedback.blockReason)
+      throw new Error("안전 필터로 응답이 차단되었습니다: " + data.promptFeedback.blockReason);
+    throw new Error("응답을 받지 못했습니다.");
+  }
+  const parts = (cand.content && cand.content.parts) || [];
+  return parts.map(p => p.text || "").join("").trim();
+}
+
+/* ───────────── 상태 / 키 관리 ───────────── */
+function getKey() {
+  if (EMBEDDED_KEY) return EMBEDDED_KEY;
+  return (document.getElementById("apiKey").value || localStorage.getItem("gemini_key") || "").trim();
+}
+function saveKey() {
+  const k = document.getElementById("apiKey").value.trim();
+  if (!k) { alert("키를 입력하세요."); return; }
+  localStorage.setItem("gemini_key", k);
+  alert("키가 이 브라우저에 저장되었습니다.");
+}
+function clearKey() {
+  localStorage.removeItem("gemini_key");
+  document.getElementById("apiKey").value = "";
+  alert("저장된 키를 삭제했습니다.");
+}
+
+/* ───────────── 양식(섹션) 편집 ───────────── */
+let sections = [];
+function loadSections() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("log_sections"));
+    if (Array.isArray(saved) && saved.length) { sections = saved; return; }
+  } catch(_) {}
+  sections = JSON.parse(JSON.stringify(DEFAULT_LOG_SECTIONS));
+}
+function saveSections() { localStorage.setItem("log_sections", JSON.stringify(sections)); }
+function renderSections() {
+  const box = document.getElementById("sections");
+  box.innerHTML = "";
+  sections.forEach((s, i) => {
+    const div = document.createElement("div");
+    div.className = "sec-item";
+    div.innerHTML = `
+      <div class="fields">
+        <input type="text" value="${escapeAttr(s.title)}" placeholder="항목 제목" oninput="updSection(${i},'title',this.value)">
+        <input type="text" value="${escapeAttr(s.guide)}" placeholder="작성 가이드 (선택)" oninput="updSection(${i},'guide',this.value)">
+      </div>
+      <div class="ctrl">
+        <button class="icon-btn" onclick="moveSection(${i},-1)" title="위로">▲</button>
+        <button class="icon-btn" onclick="moveSection(${i},1)" title="아래로">▼</button>
+        <button class="icon-btn" onclick="delSection(${i})" title="삭제">✕</button>
+      </div>`;
+    box.appendChild(div);
+  });
+}
+function updSection(i, field, val){ sections[i][field]=val; saveSections(); }
+function addSection(){ sections.push({title:"",guide:""}); saveSections(); renderSections(); }
+function delSection(i){ sections.splice(i,1); if(!sections.length) sections.push({title:"",guide:""}); saveSections(); renderSections(); }
+function moveSection(i,d){ const j=i+d; if(j<0||j>=sections.length) return; [sections[i],sections[j]]=[sections[j],sections[i]]; saveSections(); renderSections(); }
+function resetSections(){ if(!confirm("기본 항목으로 되돌릴까요?")) return; sections=JSON.parse(JSON.stringify(DEFAULT_LOG_SECTIONS)); saveSections(); renderSections(); }
+
+/* ───────────── 유틸 ───────────── */
+function escapeAttr(s){ return (s||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;"); }
+function escapeHtml(s){ return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function getTopics(){
+  return [...document.querySelectorAll("#topics input:checked")].map(c=>c.value);
+}
+
+/* ───────────── 생성 ───────────── */
+async function generate() {
+  const key = getKey();
+  if (!key) { alert("먼저 Gemini API 키를 입력/저장하세요."); document.getElementById("apiKey").focus(); return; }
+  const alias = document.getElementById("alias").value.trim();
+  const dateStr = document.getElementById("cdate").value;
+  const sessionNo = parseInt(document.getElementById("session").value || "0", 10) || 0;
+  const topics = getTopics();
+  const memo = document.getElementById("memo").value.trim();
+  const previousLog = document.getElementById("prevLog").value.trim();
+
+  if (!memo) { alert("상담 메모를 입력해 주세요."); return; }
+  if (!alias) { alert("학생 가명/이니셜을 입력해 주세요."); return; }
+
+  const btn = document.getElementById("genBtn");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>일지를 작성하는 중...';
+
+  try {
+    const prompt = buildPrompt(alias, dateStr, topics, memo, sections, previousLog);
+    const text = await callGemini(key, prompt);
+    showResult(text, { alias, dateStr, sessionNo, topics, memo });
+  } catch (e) {
+    showError(e.message || String(e));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "일지 작성하기";
+  }
+}
+
+function showError(msg) {
+  document.getElementById("result").innerHTML =
+    `<div class="note err"><b>일지 생성 중 오류가 발생했습니다.</b><br>${escapeHtml(msg)}<br><span class="small">키가 올바른지, 인터넷이 연결됐는지 확인하세요.</span></div>`;
+}
+
+function showResult(text, info) {
+  const crisis = detectCrisis(info.topics, info.memo);
+  const box = document.getElementById("result");
+  box.innerHTML = `
+    <div class="card">
+      <h2>📄 작성된 상담 일지</h2>
+      ${crisis ? `<div class="note err">${CRISIS_NOTICE}</div>` : ""}
+      <div class="note info">${AI_DISCLAIMER}</div>
+      <label for="edited">내용을 검토하고 필요하면 수정하세요.</label>
+      <textarea id="edited" rows="16">${escapeHtml(text)}</textarea>
+      <div style="margin-top:12px">
+        <button class="btn" onclick="downloadTxt()">📥 .txt 파일로 저장</button>
+      </div>
+      <div style="margin-top:8px">
+        <button class="btn btn-sec" onclick="nextStudent()">🧹 저장했어요 — 다음 학생 (입력 비우기)</button>
+      </div>
+      <p class="small">다음 학생으로 넘어가기 전에 위 버튼을 누르면 입력과 결과가 지워져, 이전 학생 정보가 화면에 남지 않습니다.</p>
+    </div>`;
+  box._info = info;
+  box.scrollIntoView({ behavior:"smooth", block:"start" });
+}
+
+function downloadTxt() {
+  const box = document.getElementById("result");
+  const info = box._info;
+  const edited = document.getElementById("edited").value;
+  const counselor = document.getElementById("counselor").value.trim();
+  const now = new Date();
+  const createdAt = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const header = counselor ? `상담사: ${counselor}\n` : "";
+  const sessionLine = info.sessionNo ? `상담회차: ${info.sessionNo}회차\n` : "";
+  const topicStr = info.topics.length ? info.topics.join(", ") : "미지정";
+  const body =
+    header +
+    `대상: ${info.alias}\n` +
+    `상담일자: ${info.dateStr}\n` +
+    sessionLine +
+    `상담유형: ${topicStr}\n` +
+    `작성시각: ${createdAt}\n` +
+    "------------------------------\n" +
+    edited + "\n";
+  const blob = new Blob([body], { type:"text/plain;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = buildFilename(info.alias, info.dateStr, info.sessionNo);
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function nextStudent() {
+  ["alias","memo","prevLog","session"].forEach(id => {
+    const el = document.getElementById(id);
+    el.value = (id === "session") ? "0" : "";
+  });
+  document.querySelectorAll("#topics input:checked").forEach(c => { c.checked=false; syncTopicChip(c); });
+  document.getElementById("prevFile").value = "";
+  document.getElementById("result").innerHTML = "";
+  window.scrollTo({ top:0, behavior:"smooth" });
+}
+
+/* ───────────── 초기화 ───────────── */
+function syncTopicChip(cb){ cb.closest("label").classList.toggle("on", cb.checked); }
+function init() {
+  // 키 카드: 개인용(키 박힘)이면 숨김
+  if (EMBEDDED_KEY) { document.getElementById("keyCard").style.display = "none"; }
+  else {
+    const saved = localStorage.getItem("gemini_key");
+    if (saved) document.getElementById("apiKey").value = saved;
+  }
+  document.getElementById("privacyBox").innerHTML = PRIVACY_WARNING;
+  // 오늘 날짜
+  const t = new Date();
+  document.getElementById("cdate").value = `${t.getFullYear()}-${pad(t.getMonth()+1)}-${pad(t.getDate())}`;
+  // 상담 유형 칩
+  const tbox = document.getElementById("topics");
+  COUNSELING_TOPICS.forEach(topic => {
+    const lab = document.createElement("label");
+    lab.innerHTML = `<input type="checkbox" value="${escapeAttr(topic)}"> ${escapeHtml(topic)}`;
+    const cb = lab.querySelector("input");
+    cb.addEventListener("change", () => syncTopicChip(cb));
+    tbox.appendChild(lab);
+  });
+  // 실명 경고
+  document.getElementById("alias").addEventListener("input", e => {
+    document.getElementById("nameWarn").style.display =
+      looksLikeRealName(e.target.value) ? "block" : "none";
+  });
+  // 이전 일지 파일 업로드
+  document.getElementById("prevFile").addEventListener("change", e => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = ev => { document.getElementById("prevLog").value = (ev.target.result||"").trim(); };
+    r.readAsText(f, "utf-8");
+  });
+  // 양식
+  loadSections();
+  renderSections();
+}
+init();
+</script>
+</body>
+</html>
