@@ -109,6 +109,9 @@
 
     <label>상담 유형 <span class="hint">(복수 선택 가능)</span></label>
     <div class="topics" id="topics"></div>
+    <div id="etcWrap" style="display:none; margin-top:8px">
+      <input type="text" id="etcInput" placeholder="기타 상담 유형을 직접 입력하세요">
+    </div>
 
     <label for="memo">상담 메모 (키워드·요점)</label>
     <textarea id="memo" rows="7" placeholder="상담 중 메모한 키워드나 요점을 자유롭게 적어 주세요.&#10;예: 최근 시험 성적 하락, 부모와 갈등, 수면 부족 호소..."></textarea>
@@ -339,7 +342,13 @@ function resetSections(){ if(!confirm("기본 항목으로 되돌릴까요?")) r
 function escapeAttr(s){ return (s||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;"); }
 function escapeHtml(s){ return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 function getTopics(){
-  return [...document.querySelectorAll("#topics input:checked")].map(c=>c.value);
+  const arr = [...document.querySelectorAll("#topics input:checked")].map(c=>c.value);
+  const i = arr.indexOf("기타");
+  if (i !== -1) {
+    const etc = document.getElementById("etcInput").value.trim();
+    if (etc) arr[i] = `기타: ${etc}`;
+  }
+  return arr;
 }
 
 /* ───────────── 생성 ───────────── */
@@ -432,6 +441,8 @@ function nextStudent() {
     el.value = (id === "session") ? "0" : "";
   });
   document.querySelectorAll("#topics input:checked").forEach(c => { c.checked=false; syncTopicChip(c); });
+  document.getElementById("etcInput").value = "";
+  document.getElementById("etcWrap").style.display = "none";
   document.getElementById("prevFile").value = "";
   document.getElementById("result").innerHTML = "";
   window.scrollTo({ top:0, behavior:"smooth" });
@@ -456,7 +467,13 @@ function init() {
     const lab = document.createElement("label");
     lab.innerHTML = `<input type="checkbox" value="${escapeAttr(topic)}"> ${escapeHtml(topic)}`;
     const cb = lab.querySelector("input");
-    cb.addEventListener("change", () => syncTopicChip(cb));
+    cb.addEventListener("change", () => {
+      syncTopicChip(cb);
+      if (topic === "기타") {
+        document.getElementById("etcWrap").style.display = cb.checked ? "block" : "none";
+        if (cb.checked) document.getElementById("etcInput").focus();
+      }
+    });
     tbox.appendChild(lab);
   });
   // 실명 경고
